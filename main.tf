@@ -27,8 +27,6 @@ data "external" "grab_token" {
   program = ["python", "${path.module}/scripts/get_token.py"]
 
   query = {
-    # arbitrary map from strings to strings, passed
-    # to the external program as the data query.
     input_file = "swarm_output.txt"
   }
 }
@@ -36,14 +34,14 @@ data "external" "grab_token" {
 resource "local_file" "rendered_provisioner" {
   depends_on = [linode_instance.parent, data.external.grab_token]
 
-  count = 4
+  count = var.child_count
 
   content  = templatefile("${path.module}/scripts/provision_child.sh.tpl", {token=data.external.grab_token.result.token, public_ip=linode_instance.parent.ip_address})
   filename = "${path.module}/provisioner-${count.index}.sh"
 }
 
 resource "linode_instance" "child" {
-  count = 4
+  count = var.child_count
 
   depends_on = [local_file.rendered_provisioner]
 

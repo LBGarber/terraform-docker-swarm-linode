@@ -15,19 +15,17 @@ resource "linode_instance" "parent" {
   provisioner "remote-exec" {
     script = "${path.module}/scripts/provision_parent.sh"
   }
-
-  provisioner "local-exec" {
-    command = "scp -i ${var.ssh_private_key} root@${self.ip_address}:/root/swarmoutput.txt swarm_output.txt"
-  }
 }
 
+// Script to extract the token from output
 data "external" "grab_token" {
   depends_on = [linode_instance.parent]
 
   program = ["python", "${path.module}/scripts/get_token.py"]
 
   query = {
-    input_file = "swarm_output.txt"
+    ssh_private_key = var.ssh_private_key
+    ip_address = linode_instance.parent.ip_address
   }
 }
 
@@ -37,7 +35,7 @@ resource "local_file" "rendered_provisioner" {
   count = var.child_count
 
   content  = templatefile("${path.module}/scripts/provision_child.sh.tpl", {token=data.external.grab_token.result.token, public_ip=linode_instance.parent.ip_address})
-  filename = "${path.module}/provisioner-${count.index}.sh"
+  filename = "${path.module}/tmp/provisioner-${count.index}.sh"
 }
 
 resource "linode_instance" "child" {
@@ -59,6 +57,6 @@ resource "linode_instance" "child" {
   }
 
   provisioner "remote-exec" {
-    script = "${path.module}/provisioner-${count.index}.sh"
+    script = "${path.module}/tmp/provisioner-${count.index}.sh"
   }
 }
